@@ -4,3 +4,7 @@ implemented upon [victoresque's pytorch-template](https://github.com/victoresque
 
 - standard : traditional setup of neural network project (single model)
 - GAN : Generative Adversarial Model based template (Generator and Discriminator)
+
+## Additional Features
+On top of the existing features implemented by victoresque, these templates also includes
+- Colored tag for logging
