@@ -1,4 +1,4 @@
-Pytorch Template
+# Pytorch Template
 
 implemented upon [victoresque's pytorch-template](https://github.com/victoresque/pytorch-template), this repo include templates for different architecture.
 
