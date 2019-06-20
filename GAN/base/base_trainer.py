@@ -9,19 +9,17 @@ class BaseTrainer:
     """
     Base class for all trainers
     """
-    def __init__(self, model, loss, metrics, optimizer, config):
+    def __init__(self, generator, discriminator, config):
         self.config = config
+        self.gen_config = config['generator']
+        self.gen_config = config['discriminator']
         self.logger = config.get_logger('trainer', config['trainer']['verbosity'])
 
         # setup GPU device if available, move model into configured device
-        self.device, device_ids = self._prepare_device(config['n_gpu'])
-        self.model = model.to(self.device)
-        if len(device_ids) > 1:
-            self.model = torch.nn.DataParallel(model, device_ids=device_ids)
+        self.device, self.device_ids = self._prepare_device(config['n_gpu'])
 
-        self.loss = loss
-        self.metrics = metrics
-        self.optimizer = optimizer
+        self.generator = self.initialize_training(generator)
+        self.discriminator = self.initialize_training(discriminator)
 
         cfg_trainer = config['trainer']
         self.epochs = cfg_trainer['epochs']
@@ -57,6 +55,13 @@ class BaseTrainer:
         :param epoch: Current epoch number
         """
         raise NotImplementedError
+
+    def initialize_training(self, player):
+        player['model'] = player['model'].to(self.device)
+        if len(self.device_ids) > 1:
+            player['model'] = torch.nn.DataParallel(player['model'], device_ids=device_ids)
+
+        return player
 
     def train(self):
         """
@@ -108,7 +113,7 @@ class BaseTrainer:
                                      "Training stops.".format(self.early_stop))
                     break
 
-            if epoch % self.save_period == 0:
+            if epoch % self.save_period == 0 or best:
                 self._save_checkpoint(epoch, save_best=best)
 
     def _prepare_device(self, n_gpu_use):
