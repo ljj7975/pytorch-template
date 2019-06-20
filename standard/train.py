@@ -4,22 +4,24 @@ import torch
 import data_loader.data_loaders as module_data
 import model.loss as module_loss
 import model.metric as module_metric
-import model.model as module_arch
+import model as model_arch
 from parse_config import ConfigParser
 from trainer import Trainer
 from test import evaluate
 
 
 def main(config):
-    logger = config.get_logger('train')
+    '''===== Preparation ====='''
+
+    train_logger = config.get_logger('train')
 
     # setup data_loader instances
     data_loader = config.initialize('data_loader', module_data)
     valid_data_loader = data_loader.split_validation()
 
     # build model architecture, then print to console
-    model = config.initialize('arch', module_arch)
-    logger.info(model)
+    model = config.initialize('arch', model_arch)
+    train_logger.info(model)
 
     # get function handles of loss and metrics
     loss_fn = getattr(module_loss, config['loss'])
@@ -31,6 +33,8 @@ def main(config):
 
     lr_scheduler = config.initialize('lr_scheduler', torch.optim.lr_scheduler, optimizer)
 
+    '''===== Training ====='''
+
     trainer = Trainer(model, loss_fn, metric_fns, optimizer,
                       config=config,
                       data_loader=data_loader,
@@ -41,9 +45,13 @@ def main(config):
 
     log = evaluate(model, metric_fns, data_loader, loss_fn)
 
-    logger.info('< Evaluation >')
+    '''===== Testing ====='''
+
+    test_logger = config.get_logger('train')
+
+    test_logger.info('< Evaluation >')
     for key, value in log.items():
-        logger.info('    {:15s}: {}'.format(str(key), value))
+        test_logger.info('    {:15s}: {}'.format(str(key), value))
 
 
 if __name__ == '__main__':

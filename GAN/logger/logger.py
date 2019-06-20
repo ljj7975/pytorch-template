@@ -39,7 +39,7 @@ class ColoredFormatter(logging.Formatter):
 # Custom logger class with multiple destinations
 class ColoredLogger(logging.Logger):
     # FORMAT = "[$BOLD%(name)-20s$RESET][%(levelname)-18s]  %(message)s ($BOLD%(filename)s$RESET:%(lineno)d)"
-    FORMAT = "[%(levelname)-18s]  %(message)s"
+    FORMAT = "[ $BOLD%(name)-5s$RESET : %(levelname)-10s ]  %(message)s"
     COLOR_FORMAT = formatter_message(FORMAT, True)
     def __init__(self, name):
         logging.Logger.__init__(self, name, logging.DEBUG)

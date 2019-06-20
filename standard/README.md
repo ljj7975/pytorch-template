@@ -1,1 +1,1 @@
-# GAN-CC
+# Standard

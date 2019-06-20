@@ -1,1 +1,1 @@
-# GAN-CC
+# GAN
