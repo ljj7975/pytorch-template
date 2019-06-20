@@ -12,22 +12,23 @@ class Trainer(BaseTrainer):
     Note:
         Inherited from BaseTrainer.
     """
-    def __init__(self, model, loss, metrics, optimizer, config, data_loader,
-                 valid_data_loader=None, lr_scheduler=None, len_epoch=None):
-        super().__init__(model, loss, metrics, optimizer, config)
+    def __init__(self, generator, discriminator, config):
+        super().__init__(generator, discriminator, config)
         self.config = config
-        self.data_loader = data_loader
-        if len_epoch is None:
-            # epoch-based training
-            self.len_epoch = len(self.data_loader)
-        else:
+
+        if self.config['trainer'].get('len_epoch', None):
             # iteration-based training
-            self.data_loader = inf_loop(data_loader)
+            self.generator['data_loader'] = inf_loop(self.generator['data_loader'])
+            self.discriminator['data_loader'] = inf_loop(self.discriminator['data_loader'])
             self.len_epoch = len_epoch
-        self.valid_data_loader = valid_data_loader
-        self.do_validation = self.valid_data_loader is not None
-        self.lr_scheduler = lr_scheduler
-        self.log_step = int(len(data_loader)/5) if len(data_loader) > 5 else 1
+        else:
+            self.len_epoch = min(len(self.generator['data_loader']), len(self.discriminator['data_loader']))
+
+        len_gen_data_loader = len(self.generator['data_loader'])
+        self.generator['log_step'] = int(len_gen_data_loader/5) if len_gen_data_loader > 5 else 1
+
+        len_dis_data_loader = len(self.discriminator['data_loader'])
+        self.discriminator['log_step'] = int(len_dis_data_loader/5) if len_dis_data_loader > 5 else 1
 
     def _eval_metrics(self, output, target):
         acc_metrics = np.zeros(len(self.metrics))

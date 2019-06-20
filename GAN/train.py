@@ -34,8 +34,10 @@ def main(config):
     lr_scheduler = config.initialize('lr_scheduler', torch.optim.lr_scheduler, 'generator', optimizer)
 
     generator = {
+        'logger': gen_logger,
         'data_loader': data_loader,
         'valid_data_loader': valid_data_loader,
+        'model': model,
         'loss_fn': loss_fn,
         'metric_fns': metric_fns,
         'optimizer': optimizer,
@@ -64,23 +66,25 @@ def main(config):
     lr_scheduler = config.initialize('lr_scheduler', torch.optim.lr_scheduler, 'discriminator', optimizer)
 
     discriminator = {
+        'logger': dis_logger,
         'data_loader': data_loader,
         'valid_data_loader': valid_data_loader,
+        'model': model,
         'loss_fn': loss_fn,
         'metric_fns': metric_fns,
         'optimizer': optimizer,
         'lr_scheduler': lr_scheduler
     }
 
-    return
-
     '''===== Training ====='''
 
-    trainer = Trainer(model, loss_fn, metric_fns, optimizer,
-                      config=config,
-                      data_loader=data_loader,
-                      valid_data_loader=valid_data_loader,
-                      lr_scheduler=lr_scheduler)
+    trainer = Trainer(generator, discriminator, config)
+
+    # trainer = Trainer(model, loss_fn, metric_fns, optimizer,
+    #                   config=config,
+    #                   data_loader=data_loader,
+    #                   valid_data_loader=valid_data_loader,
+    #                   lr_scheduler=lr_scheduler)
 
     trainer.train()
 

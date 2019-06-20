@@ -3,6 +3,7 @@ from abc import abstractmethod
 from numpy import inf
 from logger import TensorboardWriter
 from tqdm import tqdm
+import os
 
 
 class BaseTrainer:
@@ -11,8 +12,6 @@ class BaseTrainer:
     """
     def __init__(self, generator, discriminator, config):
         self.config = config
-        self.gen_config = config['generator']
-        self.gen_config = config['discriminator']
         self.logger = config.get_logger('trainer', config['trainer']['verbosity'])
 
         # setup GPU device if available, move model into configured device
@@ -21,28 +20,23 @@ class BaseTrainer:
         self.generator = self.initialize_training(generator)
         self.discriminator = self.initialize_training(discriminator)
 
+        self.generator['config'] = config['generator']
+        self.discriminator['config'] = config['discriminator']
+
         cfg_trainer = config['trainer']
         self.epochs = cfg_trainer['epochs']
         self.save_period = cfg_trainer['save_period']
-        self.monitor = cfg_trainer.get('monitor', 'off')
-
-        # configuration to monitor model performance and save best
-        if self.monitor == 'off':
-            self.mnt_mode = 'off'
-            self.mnt_best = 0
-        else:
-            self.mnt_mode, self.mnt_metric = self.monitor.split()
-            assert self.mnt_mode in ['min', 'max']
-
-            self.mnt_best = inf if self.mnt_mode == 'min' else -inf
-            self.early_stop = cfg_trainer.get('early_stop', inf)
-
+        self.early_stop = cfg_trainer.get('early_stop', inf)
         self.start_epoch = 1
 
-        self.checkpoint_dir = config.save_dir
+        self.generator['monitor'] = self.initialize_monitor(cfg_trainer['monitor'].get('generator', 'off'))
+        self.discriminator['monitor'] = self.initialize_monitor(cfg_trainer['monitor'].get('discriminator', 'off'))
 
-        # setup visualization writer instance
-        self.writer = TensorboardWriter(config.log_dir, self.logger, cfg_trainer['tensorboard'])
+        self.generator['checkpoint_dir'] = os.path.join(config.save_dir, "generator")
+        self.discriminator['checkpoint_dir'] = os.path.join(config.save_dir, "discriminator")
+
+        self.generator['writer'] = TensorboardWriter(config.log_dir / 'generator', self.generator['logger'], cfg_trainer['tensorboard'])
+        self.discriminator['writer'] = TensorboardWriter(config.log_dir / 'discriminator', self.discriminator['logger'], cfg_trainer['tensorboard'])
 
         if config.resume is not None:
             self._resume_checkpoint(config.resume)
@@ -62,6 +56,19 @@ class BaseTrainer:
             player['model'] = torch.nn.DataParallel(player['model'], device_ids=device_ids)
 
         return player
+
+    def initialize_monitor(self, monitor):
+        if monitor == 'off':
+            return None
+
+        mnt_mode, mnt_metric = monitor.split()
+        assert mnt_mode in ['min', 'max']
+
+        return {
+            "mnt_mode": mnt_mode,
+            "mnt_metric": mnt_metric,
+            "mnt_best": inf if mnt_mode == 'min' else -inf
+        }
 
     def train(self):
         """

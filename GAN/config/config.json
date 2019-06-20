@@ -79,7 +79,11 @@
 		"save_period": 1,
 		"verbosity": 2,
 
-		"monitor": "min val_loss",
+		"monitor": {
+			"generator": "min val_loss",
+			"discriminator": "max val_loss"
+		},
+
 		"early_stop": 10,
 
 		"tensorboard": true
