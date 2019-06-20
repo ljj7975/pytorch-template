@@ -4,3 +4,4 @@ implemented upon [victoresque's pytorch-template](https://github.com/victoresque
 
 - standard : traditional setup of neural network project (single model)
 - GAN : Generative Adversarial Model based template (Generator and Discriminator)
+
