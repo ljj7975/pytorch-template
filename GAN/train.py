@@ -12,12 +12,13 @@ from test import evaluate
 
 def main(config):
 
+    '''===== Data Loader ====='''
+    # setup data_loader instances
+    data_loader = config.initialize('data_loader', module_data)
+    valid_data_loader = data_loader.split_validation()
+
     '''===== Generator ====='''
     gen_logger = config.get_logger('generator')
-
-    # setup data_loader instances
-    data_loader = config.initialize('data_loader', module_data, 'generator')
-    valid_data_loader = data_loader.split_validation()
 
     # build model architecture, then print to console
     model = config.initialize('arch', model_arch, 'generator')
@@ -35,8 +36,6 @@ def main(config):
 
     generator = {
         'logger': gen_logger,
-        'data_loader': data_loader,
-        'valid_data_loader': valid_data_loader,
         'model': model,
         'loss_fn': loss_fn,
         'metric_fns': metric_fns,
@@ -48,7 +47,7 @@ def main(config):
     dis_logger = config.get_logger('discriminator')
 
     # setup data_loader instances
-    data_loader = config.initialize('data_loader', module_data, 'discriminator')
+    data_loader = config.initialize('data_loader', module_data)
     valid_data_loader = data_loader.split_validation()
 
     # build model architecture, then print to console
@@ -67,8 +66,6 @@ def main(config):
 
     discriminator = {
         'logger': dis_logger,
-        'data_loader': data_loader,
-        'valid_data_loader': valid_data_loader,
         'model': model,
         'loss_fn': loss_fn,
         'metric_fns': metric_fns,
@@ -78,7 +75,7 @@ def main(config):
 
     '''===== Training ====='''
 
-    trainer = Trainer(generator, discriminator, config)
+    trainer = Trainer(generator, discriminator, config, data_loader, valid_data_loader)
 
     # trainer = Trainer(model, loss_fn, metric_fns, optimizer,
     #                   config=config,

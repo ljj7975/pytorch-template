@@ -10,16 +10,6 @@
 				"output_size": 784
 			}
 		},
-		"data_loader": {
-			"type": "MnistDataLoader",
-			"args":{
-				"data_dir": "data/",
-				"batch_size": 128,
-				"shuffle": true,
-				"validation_split": 0.1,
-				"num_workers": 2
-			}
-		},
 		"optimizer": {
 			"type": "Adam",
 			"args":{
@@ -28,8 +18,10 @@
 				"amsgrad": true
 			}
 		},
-		"loss": "nll_loss",
-		"metrics": [],
+		"loss": "bce_loss",
+		"metrics": [
+			"my_metric"
+		],
 		"lr_scheduler": {
 			"type": "StepLR",
 			"args": {
@@ -43,17 +35,7 @@
 		"arch": {
 			"type": "Discriminator",
 			"args": {
-				"input_size": 784,
-			}
-		},
-		"data_loader": {
-			"type": "MnistDataLoader",
-			"args":{
-				"data_dir": "data/",
-				"batch_size": 128,
-				"shuffle": true,
-				"validation_split": 0.1,
-				"num_workers": 2
+				"input_size": 784
 			}
 		},
 		"optimizer": {
@@ -64,9 +46,9 @@
 				"amsgrad": true
 			}
 		},
-		"loss": "nll_loss",
+		"loss": "bce_loss",
 		"metrics": [
-			"my_metric", "my_metric2"
+			"my_metric"
 		],
 		"lr_scheduler": {
 			"type": "StepLR",
@@ -74,6 +56,17 @@
 				"step_size": 50,
 				"gamma": 0.1
 			}
+		}
+	},
+
+	"data_loader": {
+		"type": "MnistDataLoader",
+		"args":{
+			"data_dir": "data/",
+			"batch_size": 128,
+			"shuffle": true,
+			"validation_split": 0.1,
+			"num_workers": 2
 		}
 	},
 
