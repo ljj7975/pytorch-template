@@ -41,12 +41,32 @@ class Trainer(BaseTrainer):
             writer.add_scalar('{}'.format(metric.__name__), acc_metrics[i])
         return acc_metrics
 
-    def _train_discriminator(self, epoch, batch_idx, data):
-        print('discriminator', epoch)
+    def _train_discriminator(self, epoch, batch_idx, real_data, fake_data):
+        self.generator['model'].eval()
+        self.discriminator['model'].train()
+
+        self.discriminator['optimizer'].zero_grad()
+
+        real_target = Variable(torch.FloatTensor(real_data.size(0), 1).fill_(1.0), requires_grad=False).to(self.device)
+        fake_target = Variable(torch.FloatTensor(fake_data.size(0), 1).fill_(0.0), requires_grad=False).to(self.device)
+
+        data = torch.cat((real_data, fake_data), 0)
+        target = torch.cat((real_target, fake_target), 0)
+
+        output = self.discriminator['model'](data)
+        loss = self.discriminator['loss_fn'](output, target)
+
+        loss.backward()
+        self.discriminator['optimizer'].step()
+
+        self.discriminator['writer'].set_step((epoch - 1) * self.len_epoch + batch_idx)
+        self.discriminator['writer'].add_scalar('loss', loss.item())
+
+        metrics = self._eval_metrics(self.discriminator['metric_fns'], self.discriminator['writer'], output, target.long())
+
+        return loss.item(), metrics
 
     def _train_generator(self, epoch, batch_idx, data):
-        print('generator', epoch)
-
         self.generator['model'].train()
         self.discriminator['model'].eval()
 
@@ -54,8 +74,6 @@ class Trainer(BaseTrainer):
 
         # generate samples which can fool discriminator
         target = Variable(torch.FloatTensor(data.size(0), 1).fill_(1.0), requires_grad=False).to(self.device)
-
-        self.generator['optimizer'].zero_grad()
 
         # Sample noise as generator input
         z = Variable(torch.randn(data.size(0), self.z_size))
@@ -69,6 +87,7 @@ class Trainer(BaseTrainer):
 
         loss.backward()
         self.generator['optimizer'].step()
+        gen_samples = gen_samples.detach()
 
         self.generator['writer'].set_step((epoch - 1) * self.len_epoch + batch_idx)
         self.generator['writer'].add_scalar('loss', loss.item())
@@ -108,24 +127,24 @@ class Trainer(BaseTrainer):
         for batch_idx, (data, target) in enumerate(self.data_loader):
             data, target = data.to(self.device), target.to(self.device)
 
-            # fake_target = Variable(Tensor(data.size(0), 1).fill_(0.0), requires_grad=False)
-
             gen_loss, gen_metrics, gen_samples = self._train_generator(epoch, batch_idx, data)
 
             total_gen_loss += gen_loss
             total_gen_metrics += gen_metrics
 
-            dis_loss, dis_metrics = self._train_discriminator(epoch, batch_idx, data)
+            dis_loss, dis_metrics = self._train_discriminator(epoch, batch_idx, data, gen_samples)
 
             total_dis_loss += dis_loss
             total_dis_metrics += dis_metrics
 
             if batch_idx % self.log_step == 0:
-                self.logger.debug('Train Epoch: {} {} \n\tGen Loss: {:.6f} \n\tDis Loss: {:.6f}'.format(
+                self.logger.debug(('Train Epoch: {} {} \n\t'
+                    + 'generator loss\t\t: {:.6f} \n\t'
+                    + 'discriminator loss\t: {:.6f}').format(
                     epoch,
                     self._progress(batch_idx),
-                    gen_loss.item(),
-                    dis_loss.item()))
+                    gen_loss,
+                    dis_loss))
                 self.generator['writer'].add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
                 self.discriminator['writer'].add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
 
@@ -133,10 +152,14 @@ class Trainer(BaseTrainer):
                 break
 
         log = {
-            'gen_loss': total_gen_loss / self.len_epoch,
-            'gen_metrics': (total_gen_metrics / self.len_epoch).tolist(),
-            'dis_loss': total_dis_loss / self.len_epoch,
-            'dis_metrics': (total_dis_metrics / self.len_epoch).tolist()
+            'generator': {
+                'loss': total_gen_loss / self.len_epoch,
+                'metrics': (total_gen_metrics / self.len_epoch).tolist(),
+            },
+            'discriminator': {
+                'loss': total_dis_loss / self.len_epoch,
+                'metrics': (total_dis_metrics / self.len_epoch).tolist()
+            }
         }
 
         # TODO :: implement validation steps

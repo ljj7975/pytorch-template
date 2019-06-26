@@ -77,21 +77,15 @@ def main(config):
 
     trainer = Trainer(generator, discriminator, config, data_loader, valid_data_loader)
 
-    # trainer = Trainer(model, loss_fn, metric_fns, optimizer,
-    #                   config=config,
-    #                   data_loader=data_loader,
-    #                   valid_data_loader=valid_data_loader,
-    #                   lr_scheduler=lr_scheduler)
-
     trainer.train()
 
-    log = evaluate(model, metric_fns, data_loader, loss_fn)
-
-    '''===== Testing ====='''
-
-    logger.info('< Evaluation >')
-    for key, value in log.items():
-        logger.info('    {:15s}: {}'.format(str(key), value))
+    # '''===== Testing ====='''
+    #
+    # log = evaluate(generator, discriminator, config, valid_data_loader)
+    #
+    # logger.info('< Evaluation >')
+    # for key, value in log.items():
+    #     logger.info('    {:15s}: {}'.format(str(key), value))
 
 
 if __name__ == '__main__':

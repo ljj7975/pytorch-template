@@ -87,12 +87,14 @@ class BaseTrainer:
                 else:
                     log[key] = value
 
-            self.logger.info('< Epoch {} >'.format(log['epoch']))
+            log_msg = '< Epoch {} >'.format(log['epoch']) + '\n'
             # print logged informations to the screen
             for key, value in log.items():
                 if isinstance(value, float):
                     value = round(value, 6)
-                self.logger.info('    {:15s}: {}'.format(str(key), value))
+                log_msg += '    {:15s}: {}'.format(str(key), value) + '\n'
+
+            self.logger.info(log_msg)
 
             # evaluate model performance according to configured metric, save best checkpoint as model_best
             best = False

@@ -7,7 +7,9 @@ import model.metric as module_metric
 import model as model_arch
 from parse_config import ConfigParser
 
-def evaluate(model, metric_fns, data_loader, loss_fn):
+
+# def evaluate(model, metric_fns, data_loader, loss_fn):
+def evaluate(generator, discriminator, config, valid_data_loader):
     # prepare model for testing
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
@@ -42,6 +44,10 @@ def evaluate(model, metric_fns, data_loader, loss_fn):
 
 def main(config):
     logger = config.get_logger('test')
+
+    # TODO :: generate samples
+
+    # TODO :: run discriminator    
 
     # setup data_loader instances
     data_loader = getattr(module_data, config['data_loader']['type'])(

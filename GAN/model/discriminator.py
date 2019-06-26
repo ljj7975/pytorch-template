@@ -14,6 +14,7 @@ class Discriminator(nn.Module):
 
     # forward method
     def forward(self, x):
+        x = x.view(x.size(0), -1)
         x = F.leaky_relu(self.fc1(x), 0.2)
         x = F.dropout(x, 0.3)
         x = F.leaky_relu(self.fc2(x), 0.2)

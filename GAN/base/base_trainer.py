@@ -32,8 +32,10 @@ class BaseTrainer:
         self.generator['monitor'] = self.initialize_monitor(cfg_trainer['monitor'].get('generator', 'off'))
         self.discriminator['monitor'] = self.initialize_monitor(cfg_trainer['monitor'].get('discriminator', 'off'))
 
-        self.generator['checkpoint_dir'] = os.path.join(config.save_dir, "generator")
-        self.discriminator['checkpoint_dir'] = os.path.join(config.save_dir, "discriminator")
+        self.generator['checkpoint_dir'] = config.save_dir / "generator"
+        self.generator['checkpoint_dir'].mkdir(parents=True, exist_ok=True)
+        self.discriminator['checkpoint_dir'] = config.save_dir / "discriminator"
+        self.discriminator['checkpoint_dir'].mkdir(parents=True, exist_ok=True)
 
         self.generator['writer'] = TensorboardWriter(config.log_dir / 'generator', self.generator['logger'], cfg_trainer['tensorboard'])
         self.discriminator['writer'] = TensorboardWriter(config.log_dir / 'discriminator', self.discriminator['logger'], cfg_trainer['tensorboard'])
@@ -67,7 +69,8 @@ class BaseTrainer:
         return {
             "mnt_mode": mnt_mode,
             "mnt_metric": mnt_metric,
-            "mnt_best": inf if mnt_mode == 'min' else -inf
+            "mnt_best": inf if mnt_mode == 'min' else -inf,
+            "not_improved_count": 0
         }
 
     def train(self):
@@ -87,41 +90,73 @@ class BaseTrainer:
                 else:
                     log[key] = value
 
-            self.logger.info('< Epoch {} >'.format(log['epoch']))
             # print logged informations to the screen
-            for key, value in log.items():
+            log_msg = '< Epoch {} >'.format(log['epoch']) + '\n'
+            log_msg += '    Generator :\n'
+            for key, value in log['generator'].items():
                 if isinstance(value, float):
                     value = round(value, 6)
-                self.logger.info('    {:15s}: {}'.format(str(key), value))
+                log_msg += '        {:15s}: {}'.format(str(key), value) + '\n'
+
+            log_msg += '    discriminator :\n'
+            for key, value in log['discriminator'].items():
+                if isinstance(value, float):
+                    value = round(value, 6)
+                log_msg += '        {:15s}: {}'.format(str(key), value) + '\n'
+
+            self.logger.info(log_msg)
 
             # evaluate model performance according to configured metric, save best checkpoint as model_best
-            best = False
-            if self.mnt_mode != 'off':
-                try:
-                    # check whether model performance improved or not, according to specified metric(mnt_metric)
-                    improved = (self.mnt_mode == 'min' and log[self.mnt_metric] <= self.mnt_best) or \
-                               (self.mnt_mode == 'max' and log[self.mnt_metric] >= self.mnt_best)
-                except KeyError:
-                    self.logger.warning("Warning: Metric '{}' is not found. "
-                                        "Model performance monitoring is disabled.".format(self.mnt_metric))
-                    self.mnt_mode = 'off'
-                    improved = False
-                    not_improved_count = 0
+            gen_best, gen_early_stop = self._monitor_progress('generator', log['generator'])
 
-                if improved:
-                    self.mnt_best = log[self.mnt_metric]
-                    not_improved_count = 0
-                    best = True
-                else:
-                    not_improved_count += 1
+            if gen_early_stop:
+                logger.info("Validation performance of {} didn\'t improve for {} epochs. "
+                                 "Training stops.".format('generator', self.early_stop))
 
-                if not_improved_count > self.early_stop:
-                    self.logger.info("Validation performance didn\'t improve for {} epochs. "
-                                     "Training stops.".format(self.early_stop))
-                    break
+            if epoch % self.save_period == 0 or gen_best:
+                self._save_checkpoint(epoch, 'generator', save_best=gen_best)
 
-            if epoch % self.save_period == 0 or best:
-                self._save_checkpoint(epoch, save_best=best)
+            dis_best, dis_early_stop = self._monitor_progress('discriminator', log['discriminator'])
+
+            if dis_early_stop:
+                logger.info("Validation performance of {} didn\'t improve for {} epochs. "
+                                 "Training stops.".format('discriminator', self.early_stop))
+
+            if epoch % self.save_period == 0 or dis_best:
+                self._save_checkpoint(epoch, 'discriminator', save_best=dis_best)
+
+            if gen_early_stop or dis_early_stop:
+                break;
+
+    def _monitor_progress(self, player, log):
+        if player == 'generator':
+            monitor = self.generator['monitor']
+            logger = self.generator['logger']
+        elif player == 'discriminator':
+            monitor = self.discriminator['monitor']
+            logger = self.discriminator['logger']
+
+        best = False
+        if monitor['mnt_mode'] != 'off':
+            try:
+                # check whether model performance improved or not, according to specified metric(mnt_metric)
+                improved = (monitor['mnt_mode'] == 'min' and log[monitor['mnt_metric']] <= monitor['mnt_best']) or \
+                           (monitor['mnt_mode'] == 'max' and log[monitor['mnt_metric']] >= monitor['mnt_best'])
+            except KeyError:
+                logger.warning("Warning: Metric '{}' is not found for {}. "
+                                    "Model performance monitoring is disabled.".format(monitor['mnt_metric'], player))
+                monitor['mnt_mode'] = 'off'
+                improved = False
+                monitor['not_improved_count'] = 0
+
+            if improved:
+                monitor['mnt_best'] = log[monitor['mnt_metric']]
+                monitor['not_improved_count'] = 0
+                best = True
+            else:
+                monitor['not_improved_count'] += 1
+
+        return best, monitor['not_improved_count'] > self.early_stop
 
     def _prepare_device(self, n_gpu_use):
         """
@@ -140,7 +175,7 @@ class BaseTrainer:
         list_ids = list(range(n_gpu_use))
         return device, list_ids
 
-    def _save_checkpoint(self, epoch, save_best=False):
+    def _save_checkpoint(self, epoch, player, save_best=False):
         """
         Saving checkpoints
 
@@ -148,22 +183,27 @@ class BaseTrainer:
         :param log: logging information of the epoch
         :param save_best: if True, rename the saved checkpoint to 'model_best.pth'
         """
-        arch = type(self.model).__name__
+        if player == 'generator':
+            player_info = self.generator
+        elif player == 'discriminator':
+            player_info = self.discriminator
+
+        arch = type(player_info['model']).__name__
         state = {
             'arch': arch,
             'epoch': epoch,
-            'state_dict': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'monitor_best': self.mnt_best,
-            'config': self.config
+            'state_dict': player_info['model'].state_dict(),
+            'optimizer': player_info['optimizer'].state_dict(),
+            'monitor_best': player_info['monitor']['mnt_best'],
+            'config': player_info['config']
         }
-        filename = str(self.checkpoint_dir / 'checkpoint-epoch{}.pth'.format(epoch))
+        filename = str(player_info['checkpoint_dir'] / 'checkpoint-epoch{}.pth').format(epoch)
         torch.save(state, filename)
-        self.logger.info("Saving checkpoint: {} ...".format(filename))
+        player_info['logger'].info("Saving checkpoint: {} ...".format(filename))
         if save_best:
-            best_path = str(self.checkpoint_dir / 'model_best.pth')
+            best_path = str(player_info['checkpoint_dir'] / 'model_best.pth')
             torch.save(state, best_path)
-            self.logger.info("Saving current best: model_best.pth ...")
+            player_info['logger'].info("Saving current best {}: model_best.pth ...".format(player))
 
     def _resume_checkpoint(self, resume_path):
         """
