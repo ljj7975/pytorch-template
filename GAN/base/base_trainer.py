@@ -106,27 +106,24 @@ class BaseTrainer:
 
             self.logger.info(log_msg)
 
-            # evaluate model performance according to configured metric, save best checkpoint as model_best
-            gen_best, gen_early_stop = self._monitor_progress('generator', log['generator'])
-
-            if gen_early_stop:
-                logger.info("Validation performance of {} didn\'t improve for {} epochs. "
-                                 "Training stops.".format('generator', self.early_stop))
-
-            if epoch % self.save_period == 0 or gen_best:
-                self._save_checkpoint(epoch, 'generator', save_best=gen_best)
-
-            dis_best, dis_early_stop = self._monitor_progress('discriminator', log['discriminator'])
-
-            if dis_early_stop:
-                logger.info("Validation performance of {} didn\'t improve for {} epochs. "
-                                 "Training stops.".format('discriminator', self.early_stop))
-
-            if epoch % self.save_period == 0 or dis_best:
-                self._save_checkpoint(epoch, 'discriminator', save_best=dis_best)
+            gen_early_stop = self._check_and_save(epoch, 'generator', log['generator'])
+            dis_early_stop = self._check_and_save(epoch, 'discriminator', log['discriminator'])
 
             if gen_early_stop or dis_early_stop:
                 break;
+
+    def _check_and_save(self, epoch, player, log):
+        # evaluate model performance according to configured metric, save best checkpoint as model_best
+        best, early_stop = self._monitor_progress(player, log)
+
+        if early_stop:
+            logger.info("Validation performance of {} didn\'t improve for {} epochs. "
+                             "Training stops.".format(player, self.early_stop))
+
+        if epoch % self.save_period == 0 or best:
+            self._save_checkpoint(epoch, player, save_best=best)
+
+        return best
 
     def _monitor_progress(self, player, log):
         if player == 'generator':
