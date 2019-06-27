@@ -6,8 +6,7 @@ import model.loss as module_loss
 import model.metric as module_metric
 import model as model_arch
 from parse_config import ConfigParser
-from trainer import Trainer
-from test import evaluate
+from trainer import Trainer, evaluate
 
 
 def main(config):
@@ -79,13 +78,24 @@ def main(config):
 
     trainer.train()
 
-    # '''===== Testing ====='''
-    #
-    # log = evaluate(generator, discriminator, config, valid_data_loader)
-    #
-    # logger.info('< Evaluation >')
-    # for key, value in log.items():
-    #     logger.info('    {:15s}: {}'.format(str(key), value))
+    '''===== Testing ====='''
+
+    log = evaluate(generator, discriminator, config, valid_data_loader)
+
+    log_msg = '< Evaluation >\n'
+    log_msg += '    Generator :\n'
+    for key, value in log['generator'].items():
+        if isinstance(value, float):
+            value = round(value, 6)
+        log_msg += '        {:15s}: {}'.format(str(key), value) + '\n'
+
+    log_msg += '    Discriminator :\n'
+    for key, value in log['discriminator'].items():
+        if isinstance(value, float):
+            value = round(value, 6)
+        log_msg += '        {:15s}: {}'.format(str(key), value) + '\n'
+
+    trainer.logger.info(log_msg)
 
 
 if __name__ == '__main__':
