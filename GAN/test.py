@@ -6,6 +6,7 @@ import model.loss as module_loss
 import model.metric as module_metric
 import model as model_arch
 from parse_config import ConfigParser
+from trainer import evaluate
 
 
 # def evaluate(model, metric_fns, data_loader, loss_fn):
@@ -47,7 +48,7 @@ def main(config):
 
     # TODO :: generate samples
 
-    # TODO :: run discriminator    
+    # TODO :: run discriminator
 
     # setup data_loader instances
     data_loader = getattr(module_data, config['data_loader']['type'])(

@@ -10,18 +10,22 @@ from trainer import Trainer, evaluate
 
 
 def main(config):
+    logger = config.get_logger('GAN', config['trainer']['verbosity'])
 
     '''===== Data Loader ====='''
+    logger.info('preparing data loader')
+
     # setup data_loader instances
     data_loader = config.initialize('data_loader', module_data)
     valid_data_loader = data_loader.split_validation()
 
     '''===== Generator ====='''
-    gen_logger = config.get_logger('generator')
+    logger.info('preparing Generator')
+    # gen_logger = config.get_logger('generator')
 
     # build model architecture, then print to console
     model = config.initialize('arch', model_arch, 'generator')
-    gen_logger.info(model)
+    logger.info(model)
 
     # get function handles of loss and metrics
     loss_fn = getattr(module_loss, config['generator']['loss'])
@@ -34,7 +38,6 @@ def main(config):
     lr_scheduler = config.initialize('lr_scheduler', torch.optim.lr_scheduler, 'generator', optimizer)
 
     generator = {
-        'logger': gen_logger,
         'model': model,
         'loss_fn': loss_fn,
         'metric_fns': metric_fns,
@@ -43,7 +46,8 @@ def main(config):
     }
 
     '''===== Discriminator ====='''
-    dis_logger = config.get_logger('discriminator')
+    logger.info('preparing Discriminator')
+    # dis_logger = config.get_logger('discriminator')
 
     # setup data_loader instances
     data_loader = config.initialize('data_loader', module_data)
@@ -51,7 +55,7 @@ def main(config):
 
     # build model architecture, then print to console
     model = config.initialize('arch', model_arch, 'discriminator')
-    dis_logger.info(model)
+    logger.info(model)
 
     # get function handles of loss and metrics
     loss_fn = getattr(module_loss, config['discriminator']['loss'])
@@ -64,7 +68,7 @@ def main(config):
     lr_scheduler = config.initialize('lr_scheduler', torch.optim.lr_scheduler, 'discriminator', optimizer)
 
     discriminator = {
-        'logger': dis_logger,
+        # 'logger': dis_logger,
         'model': model,
         'loss_fn': loss_fn,
         'metric_fns': metric_fns,
@@ -74,7 +78,7 @@ def main(config):
 
     '''===== Training ====='''
 
-    trainer = Trainer(generator, discriminator, config, data_loader, valid_data_loader)
+    trainer = Trainer(config, logger, generator, discriminator, data_loader, valid_data_loader)
 
     trainer.train()
 
@@ -95,7 +99,7 @@ def main(config):
             value = round(value, 6)
         log_msg += '        {:15s}: {}'.format(str(key), value) + '\n'
 
-    trainer.logger.info(log_msg)
+    logger.info(log_msg)
 
 
 if __name__ == '__main__':

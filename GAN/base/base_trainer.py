@@ -10,9 +10,9 @@ class BaseTrainer:
     """
     Base class for all trainers
     """
-    def __init__(self, generator, discriminator, config):
+    def __init__(self, config, logger, generator, discriminator):
         self.config = config
-        self.logger = config.get_logger('trainer', config['trainer']['verbosity'])
+        self.logger = logger
 
         # setup GPU device if available, move model into configured device
         self.device, self.device_ids = self._prepare_device(config['n_gpu'])
@@ -37,8 +37,8 @@ class BaseTrainer:
         self.discriminator['checkpoint_dir'] = config.save_dir / "discriminator"
         self.discriminator['checkpoint_dir'].mkdir(parents=True, exist_ok=True)
 
-        self.generator['writer'] = TensorboardWriter(config.log_dir / 'generator', self.generator['logger'], cfg_trainer['tensorboard'])
-        self.discriminator['writer'] = TensorboardWriter(config.log_dir / 'discriminator', self.discriminator['logger'], cfg_trainer['tensorboard'])
+        self.generator['writer'] = TensorboardWriter(config.log_dir / 'generator', self.logger, cfg_trainer['tensorboard'])
+        self.discriminator['writer'] = TensorboardWriter(config.log_dir / 'discriminator', self.logger, cfg_trainer['tensorboard'])
 
         if config.resume is not None:
             self._resume_checkpoint(config.resume)
@@ -117,7 +117,7 @@ class BaseTrainer:
         best, early_stop = self._monitor_progress(player, log)
 
         if early_stop:
-            logger.info("Validation performance of {} didn\'t improve for {} epochs. "
+            self.logger.info("Validation performance of {} didn\'t improve for {} epochs. "
                              "Training stops.".format(player, self.early_stop))
 
         if epoch % self.save_period == 0 or best:
@@ -128,10 +128,8 @@ class BaseTrainer:
     def _monitor_progress(self, player, log):
         if player == 'generator':
             monitor = self.generator['monitor']
-            logger = self.generator['logger']
         elif player == 'discriminator':
             monitor = self.discriminator['monitor']
-            logger = self.discriminator['logger']
 
         best = False
         if monitor['mnt_mode'] != 'off':
@@ -140,7 +138,7 @@ class BaseTrainer:
                 improved = (monitor['mnt_mode'] == 'min' and log[monitor['mnt_metric']] <= monitor['mnt_best']) or \
                            (monitor['mnt_mode'] == 'max' and log[monitor['mnt_metric']] >= monitor['mnt_best'])
             except KeyError:
-                logger.warning("Warning: Metric '{}' is not found for {}. "
+                self.logger.warning("Warning: Metric '{}' is not found for {}. "
                                     "Model performance monitoring is disabled.".format(monitor['mnt_metric'], player))
                 monitor['mnt_mode'] = 'off'
                 improved = False
@@ -196,11 +194,11 @@ class BaseTrainer:
         }
         filename = str(player_info['checkpoint_dir'] / 'checkpoint-epoch{}.pth').format(epoch)
         torch.save(state, filename)
-        player_info['logger'].info("Saving checkpoint: {} ...".format(filename))
+        self.logger.info("Saving checkpoint: {} ...".format(filename))
         if save_best:
             best_path = str(player_info['checkpoint_dir'] / 'model_best.pth')
             torch.save(state, best_path)
-            player_info['logger'].info("Saving current best {}: model_best.pth ...".format(player))
+            self.logger.info("Saving current best {}: model_best.pth ...".format(player))
 
     def _resume_checkpoint(self, resume_path):
         """

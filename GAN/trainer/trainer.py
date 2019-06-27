@@ -113,9 +113,9 @@ class Trainer(BaseTrainer):
     Note:
         Inherited from BaseTrainer.
     """
-    def __init__(self, generator, discriminator, config, data_loader,
+    def __init__(self, config, logger, generator, discriminator, data_loader,
                  valid_data_loader=None):
-        super().__init__(generator, discriminator, config)
+        super().__init__(config, logger, generator, discriminator)
         self.config = config
         self.data_loader = data_loader
 
