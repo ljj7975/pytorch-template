@@ -5,6 +5,106 @@ from torch.autograd import Variable
 from base import BaseTrainer
 from utils import inf_loop
 
+def evaluate(generator, discriminator, config, data_loader):
+
+    def evaluate_generator(batch_idx, generator, discriminator, z_size, data):
+        # prepare model for testing
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        data = data.to(device)
+        generator['model'].eval().to(device)
+        discriminator['model'].eval().to(device)
+
+        # generate samples which can fool discriminator
+        target = Variable(torch.FloatTensor(data.size(0), 1).fill_(1.0), requires_grad=False).to(device)
+
+        # Sample noise as generator input
+        z = Variable(torch.randn(data.size(0), z_size))
+
+        # Generate a batch of images
+        gen_samples = generator['model'](z)
+        dis_output = discriminator['model'](gen_samples)
+
+        # Loss measures generator's ability to fool the discriminator
+        loss = generator['loss_fn'](dis_output, target)
+        gen_samples = gen_samples.detach()
+
+        metrics = np.zeros(len(generator['metric_fns']))
+        for i, metric in enumerate(generator['metric_fns']):
+            metrics[i] += metric(dis_output, target.long())
+
+        return loss.item(), metrics, gen_samples
+
+    def evaluate_discriminator(batch_idx, generator, discriminator, real_data, fake_data):
+        # prepare model for testing
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        real_data = real_data.to(device)
+        fake_data = fake_data.to(device)
+        generator['model'].eval().to(device)
+        discriminator['model'].eval().to(device)
+
+        real_target = Variable(torch.FloatTensor(real_data.size(0), 1).fill_(1.0), requires_grad=False).to(device)
+        fake_target = Variable(torch.FloatTensor(fake_data.size(0), 1).fill_(0.0), requires_grad=False).to(device)
+
+        data = torch.cat((real_data, fake_data), 0)
+        target = torch.cat((real_target, fake_target), 0)
+
+        output = discriminator['model'](data)
+        loss = discriminator['loss_fn'](output, target)
+
+        metrics = np.zeros(len(discriminator['metric_fns']))
+        for i, metric in enumerate(discriminator['metric_fns']):
+            metrics[i] += metric(output, target.long())
+
+        return loss.item(), metrics
+
+    assert config['generator']['arch']['args']['output_size'] == \
+        config['discriminator']['arch']['args']['input_size']
+
+    z_size = config['generator']['arch']['args']['input_size']
+
+    total_gen_loss = 0
+    total_gen_metrics = np.zeros(len(generator['metric_fns']))
+
+    total_dis_loss = 0
+    total_dis_metrics = np.zeros(len(discriminator['metric_fns']))
+
+    for batch_idx, (data, _) in enumerate(data_loader):
+        gen_loss, gen_metrics, gen_samples = evaluate_generator(batch_idx, generator, discriminator, z_size, data)
+
+        total_gen_loss += gen_loss
+        total_gen_metrics += gen_metrics
+
+        dis_loss, dis_metrics = evaluate_discriminator(batch_idx, generator, discriminator, data, gen_samples)
+
+        total_dis_loss += dis_loss
+        total_dis_metrics += dis_metrics
+
+    num_batch = len(data_loader)
+
+    log = {
+        'generator': {
+            'loss': total_gen_loss / num_batch
+        },
+        'discriminator': {
+            'loss': total_dis_loss / num_batch
+        }
+    }
+
+    metrics_list = (total_gen_metrics / num_batch).tolist()
+    metrics = {}
+    for i, metric in enumerate(generator['metric_fns']):
+        metrics[metric.__name__] = metrics_list[i]
+
+    log['generator'].update(metrics)
+
+    metrics_list = (total_dis_metrics / num_batch).tolist()
+    metrics = {}
+    for i, metric in enumerate(discriminator['metric_fns']):
+        metrics[metric.__name__] = metrics_list[i]
+
+    log['discriminator'].update(metrics)
+
+    return log
 
 class Trainer(BaseTrainer):
     """
@@ -112,9 +212,6 @@ class Trainer(BaseTrainer):
             The metrics in log must have the key 'metrics'.
         """
 
-        self.generator['model'].train()
-        self.discriminator['model'].train()
-
         assert self.generator['config']['arch']['args']['output_size'] == \
             self.discriminator['config']['arch']['args']['input_size']
 
@@ -124,8 +221,8 @@ class Trainer(BaseTrainer):
         total_dis_loss = 0
         total_dis_metrics = np.zeros(len(self.discriminator['metric_fns']))
 
-        for batch_idx, (data, target) in enumerate(self.data_loader):
-            data, target = data.to(self.device), target.to(self.device)
+        for batch_idx, (data, _) in enumerate(self.data_loader):
+            data = data.to(self.device)
 
             gen_loss, gen_metrics, gen_samples = self._train_generator(epoch, batch_idx, data)
 
@@ -154,18 +251,30 @@ class Trainer(BaseTrainer):
         log = {
             'generator': {
                 'loss': total_gen_loss / self.len_epoch,
-                'metrics': (total_gen_metrics / self.len_epoch).tolist(),
             },
             'discriminator': {
                 'loss': total_dis_loss / self.len_epoch,
-                'metrics': (total_dis_metrics / self.len_epoch).tolist()
             }
         }
 
-        # TODO :: implement validation steps
-        # if self.do_validation:
-        #     val_log = self._valid_epoch(epoch)
-        #     log.update(val_log)
+        metrics_list = (total_gen_metrics / self.len_epoch).tolist()
+        metrics = {}
+        for i, metric in enumerate(self.generator['metric_fns']):
+            metrics[metric.__name__] = metrics_list[i]
+
+        log['generator'].update(metrics)
+
+        metrics_list = (total_dis_metrics / self.len_epoch).tolist()
+        metrics = {}
+        for i, metric in enumerate(self.discriminator['metric_fns']):
+            metrics[metric.__name__] = metrics_list[i]
+
+        log['discriminator'].update(metrics)
+
+        if self.do_validation:
+            val_log = self._valid_epoch(epoch)
+            log['generator'].update(val_log['generator'])
+            log['discriminator'].update(val_log['discriminator'])
 
         if self.generator['lr_scheduler'] is not None:
             self.generator['lr_scheduler'].step()
@@ -176,38 +285,36 @@ class Trainer(BaseTrainer):
         return log
 
     def _valid_epoch(self, epoch):
-        """
-        Validate after training an epoch
+        val_log = evaluate(self.generator, self.discriminator, self.config, self.valid_data_loader)
 
-        :return: A log that contains information about validation
+        gen_val_log = {}
+        for key, value in val_log['generator'].items():
+            gen_val_log['val_'+key] = val_log['generator'][key]
 
-        Note:
-            The validation metrics in log must have the key 'val_metrics'.
-        """
-        self.model.eval()
-        total_val_loss = 0
-        total_val_metrics = np.zeros(len(self.metrics))
-        with torch.no_grad():
-            for batch_idx, (data, target) in enumerate(self.valid_data_loader):
-                data, target = data.to(self.device), target.to(self.device)
+        self.generator['writer'].set_step(epoch * len(self.valid_data_loader), 'valid')
+        for key, value in gen_val_log.items():
+            self.generator['writer'].add_scalar('val_'+key, value)
 
-                output = self.model(data)
-                loss = self.loss(output, target)
+        dis_val_log = {}
+        for key, value in val_log['discriminator'].items():
+            dis_val_log['val_'+key] = val_log['discriminator'][key]
 
-                self.writer.set_step((epoch - 1) * len(self.valid_data_loader) + batch_idx, 'valid')
-                self.writer.add_scalar('loss', loss.item())
-                total_val_loss += loss.item()
-                total_val_metrics += self._eval_metrics(output, target)
-                self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+        self.discriminator['writer'].set_step(epoch * len(self.valid_data_loader), 'valid')
+        for key, value in dis_val_log.items():
+            self.discriminator['writer'].add_scalar('val_'+key, value)
+
+        val_log['generator'] = gen_val_log
+        val_log['discriminator'] = dis_val_log
 
         # add histogram of model parameters to the tensorboard
-        for name, p in self.model.named_parameters():
-            self.writer.add_histogram(name, p, bins='auto')
+        for name, p in self.generator['model'].named_parameters():
+            self.generator['writer'].add_histogram(name, p, bins='auto')
 
-        return {
-            'val_loss': total_val_loss / len(self.valid_data_loader),
-            'val_metrics': (total_val_metrics / len(self.valid_data_loader)).tolist()
-        }
+        # add histogram of model parameters to the tensorboard
+        for name, p in self.discriminator['model'].named_parameters():
+            self.discriminator['writer'].add_histogram(name, p, bins='auto')
+
+        return val_log
 
     def _progress(self, batch_idx):
         base = '[{}/{} ({:.0f}%)]'
