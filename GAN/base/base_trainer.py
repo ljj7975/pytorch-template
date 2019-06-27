@@ -41,7 +41,8 @@ class BaseTrainer:
         self.discriminator['writer'] = TensorboardWriter(config.log_dir / 'discriminator', self.logger, cfg_trainer['tensorboard'])
 
         if config.resume is not None:
-            self._resume_checkpoint(config.resume)
+            self._resume_checkpoint('generator', config.resume['generator'])
+            self._resume_checkpoint('discriminator', config.resume['discriminator'])
 
     @abstractmethod
     def _train_epoch(self, epoch):
@@ -200,29 +201,36 @@ class BaseTrainer:
             torch.save(state, best_path)
             self.logger.info("Saving current best {}: model_best.pth ...".format(player))
 
-    def _resume_checkpoint(self, resume_path):
+    def _resume_checkpoint(self, player, resume_path):
         """
         Resume from saved checkpoints
 
         :param resume_path: Checkpoint path to be resumed
         """
         resume_path = str(resume_path)
-        self.logger.info("Loading checkpoint: {} ...".format(resume_path))
+        self.logger.info("Loading checkpoint for {} : {} ...".format(player, resume_path))
         checkpoint = torch.load(resume_path)
-        self.start_epoch = checkpoint['epoch'] + 1
-        self.mnt_best = checkpoint['monitor_best']
+        self.start_epoch = max(checkpoint['epoch'] + 1, self.start_epoch)
+        self.generator['monitor']['mnt_best'] = checkpoint['monitor_best']
+
+        if player == 'generator':
+            model = self.generator['model']
+            optimizer = self.generator['optimizer']
+        elif player == 'discriminator':
+            model = self.discriminator['model']
+            optimizer = self.discriminator['optimizer']
 
         # load architecture params from checkpoint.
-        if checkpoint['config']['arch'] != self.config['arch']:
+        if checkpoint['config']['arch'] != self.config[player]['arch']:
             self.logger.warning("Warning: Architecture configuration given in config file is different from that of "
                                 "checkpoint. This may yield an exception while state_dict is being loaded.")
-        self.model.load_state_dict(checkpoint['state_dict'])
+        model.load_state_dict(checkpoint['state_dict'])
 
         # load optimizer state from checkpoint only when optimizer type is not changed.
-        if checkpoint['config']['optimizer']['type'] != self.config['optimizer']['type']:
+        if checkpoint['config']['optimizer']['type'] != self.config[player]['optimizer']['type']:
             self.logger.warning("Warning: Optimizer type given in config file is different from that of checkpoint. "
                                 "Optimizer parameters not being resumed.")
         else:
-            self.optimizer.load_state_dict(checkpoint['optimizer'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
 
-        self.logger.info("Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch))
+        self.logger.info("Checkpoint loaded for {}. Resume training from epoch {}".format(player, self.start_epoch))
