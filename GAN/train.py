@@ -10,7 +10,7 @@ from trainer import Trainer, evaluate
 
 
 def main(config):
-    logger = config.get_logger('GAN', config['trainer']['verbosity'])
+    logger = config.get_logger('train', config['trainer']['verbosity'])
 
     '''===== Data Loader ====='''
     logger.info('preparing data loader')
@@ -21,7 +21,6 @@ def main(config):
 
     '''===== Generator ====='''
     logger.info('preparing Generator')
-    # gen_logger = config.get_logger('generator')
 
     # build model architecture, then print to console
     model = config.initialize('arch', model_arch, 'generator')
@@ -47,11 +46,6 @@ def main(config):
 
     '''===== Discriminator ====='''
     logger.info('preparing Discriminator')
-    # dis_logger = config.get_logger('discriminator')
-
-    # setup data_loader instances
-    data_loader = config.initialize('data_loader', module_data)
-    valid_data_loader = data_loader.split_validation()
 
     # build model architecture, then print to console
     model = config.initialize('arch', model_arch, 'discriminator')
@@ -68,7 +62,6 @@ def main(config):
     lr_scheduler = config.initialize('lr_scheduler', torch.optim.lr_scheduler, 'discriminator', optimizer)
 
     discriminator = {
-        # 'logger': dis_logger,
         'model': model,
         'loss_fn': loss_fn,
         'metric_fns': metric_fns,
