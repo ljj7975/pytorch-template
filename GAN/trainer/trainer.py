@@ -11,14 +11,17 @@ def evaluate(generator, discriminator, config, data_loader):
         # prepare model for testing
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         data = data.to(device)
-        generator['model'].eval().to(device)
-        discriminator['model'].eval().to(device)
+        generator['model'] = generator['model'].to(device)
+        discriminator['model'] = discriminator['model'].to(device)
+
+        generator['model'].eval()
+        discriminator['model'].eval()
 
         # generate samples which can fool discriminator
         target = Variable(torch.FloatTensor(data.size(0), 1).fill_(1.0), requires_grad=False).to(device)
 
         # Sample noise as generator input
-        z = Variable(torch.randn(data.size(0), z_size))
+        z = Variable(torch.randn(data.size(0), z_size)).to(device)
 
         # Generate a batch of images
         gen_samples = generator['model'](z)
@@ -40,8 +43,11 @@ def evaluate(generator, discriminator, config, data_loader):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         real_data = real_data.to(device)
         fake_data = fake_data.to(device)
-        generator['model'].eval().to(device)
-        discriminator['model'].eval().to(device)
+        generator['model'] = generator['model'].to(device)
+        discriminator['model'] = discriminator['model'].to(device)
+
+        generator['model'].eval()
+        discriminator['model'].eval()
 
         real_target = Variable(torch.FloatTensor(real_data.size(0), 1).fill_(1.0), requires_grad=False).to(device)
         fake_target = Variable(torch.FloatTensor(fake_data.size(0), 1).fill_(0.0), requires_grad=False).to(device)
@@ -115,9 +121,9 @@ class Trainer(BaseTrainer):
     Note:
         Inherited from BaseTrainer.
     """
-    def __init__(self, config, logger, generator, discriminator, data_loader,
+    def __init__(self, config, logger, generator, discriminator, gif_generator, data_loader,
                  valid_data_loader=None):
-        super().__init__(config, logger, generator, discriminator)
+        super().__init__(config, logger, generator, discriminator, gif_generator)
         self.config = config
         self.data_loader = data_loader
 
@@ -179,7 +185,7 @@ class Trainer(BaseTrainer):
         target = Variable(torch.FloatTensor(data.size(0), 1).fill_(1.0), requires_grad=False).to(self.device)
 
         # Sample noise as generator input
-        z = Variable(torch.randn(data.size(0), self.z_size))
+        z = Variable(torch.randn(data.size(0), self.z_size)).to(self.device)
 
         # Generate a batch of images
         gen_samples = self.generator['model'](z)

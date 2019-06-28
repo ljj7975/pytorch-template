@@ -72,10 +72,10 @@
 	},
 
 	"trainer": {
-		"epochs": 3,
+		"epochs": 10000,
 
 		"save_dir": "saved/",
-		"save_period": 1,
+		"save_period": 250,
 		"verbosity": 2,
 
 		"monitor": {
@@ -83,8 +83,9 @@
 			"discriminator": "max val_loss"
 		},
 
-		"early_stop": 10,
-
-		"tensorboard": true
+		"early_stop": 250,
+		"num_samples": 16,
+		"fixed_samples": true,
+		"tensorboard": false
 	}
 }

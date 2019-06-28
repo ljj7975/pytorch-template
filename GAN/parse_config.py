@@ -41,9 +41,11 @@ class ConfigParser:
         exper_name = self.config['name']
         self._save_dir = save_dir / 'models' / exper_name / timestamp
         self._log_dir = save_dir / 'log' / exper_name / timestamp
+        self._output_dir = save_dir / 'generated' / exper_name / timestamp
 
         self.save_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # save updated config file to the checkpoint dir
         write_json(self.config, self.save_dir / 'config.json')
@@ -93,6 +95,10 @@ class ConfigParser:
     @property
     def log_dir(self):
         return self._log_dir
+
+    @property
+    def output_dir(self):
+        return self._output_dir
 
 # helper functions used to update config dict with custom cli options
 def _update_config(config, options, args):

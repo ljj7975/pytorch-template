@@ -3,6 +3,8 @@ from pathlib import Path
 from datetime import datetime
 from itertools import repeat
 from collections import OrderedDict
+from torchvision.utils import make_grid
+import matplotlib.pyplot as plt
 
 
 def ensure_dir(dirname):
@@ -22,6 +24,11 @@ def inf_loop(data_loader):
     ''' wrapper function for endless data loader. '''
     for loader in repeat(data_loader):
         yield from loader
+
+def save_generated_images(images, file_name, nrow=4):
+    grid = make_grid(images, nrow=nrow, padding=1).permute(1,2,0).numpy()
+    plt.imsave(file_name, grid)
+    return plt.imshow(grid, animated=True)
 
 class Timer:
     def __init__(self):

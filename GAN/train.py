@@ -7,6 +7,8 @@ import model.metric as module_metric
 import model as model_arch
 from parse_config import ConfigParser
 from trainer import Trainer, evaluate
+from torch.autograd import Variable
+from utils import save_generated_images, GifGenerator
 
 
 def main(config):
@@ -69,9 +71,11 @@ def main(config):
         'lr_scheduler': lr_scheduler
     }
 
+    gif_generator = GifGenerator(str(config.output_dir / "progress.gif"))
+
     '''===== Training ====='''
 
-    trainer = Trainer(config, logger, generator, discriminator, data_loader, valid_data_loader)
+    trainer = Trainer(config, logger, generator, discriminator, gif_generator, data_loader, valid_data_loader)
 
     trainer.train()
 
@@ -94,6 +98,29 @@ def main(config):
 
     logger.info(log_msg)
 
+    '''===== Generate samples ====='''
+
+    num_samples = 16
+    if trainer.default_z:
+        z = trainer.default_z
+    else:
+        if num_samples != trainer.num_samples and trainer.num_samples > 0:
+            num_samples = trainer.num_samples
+        z = Variable(torch.randn(num_samples, trainer.z_size))
+
+    z = z.to(trainer.device)
+
+    generator['model'].eval()
+    samples = generator['model'](z).detach().cpu()
+    output_file = str(config.output_dir / "final.png")
+
+    img = save_generated_images(samples.detach(), output_file)
+    logger.info("saved generated images at {}".format(output_file))
+
+    gif_generator.add_image(img)
+    gif_generator.save()
+
+    logger.info("saved progress as a gif at {}".format(gif_generator.gif_name))
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser(description='PyTorch Template')

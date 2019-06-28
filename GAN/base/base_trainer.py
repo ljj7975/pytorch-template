@@ -1,18 +1,21 @@
+import os
 import torch
 from abc import abstractmethod
 from numpy import inf
 from logger import TensorboardWriter
 from tqdm import tqdm
-import os
+from torch.autograd import Variable
+from utils import save_generated_images
 
 
 class BaseTrainer:
     """
     Base class for all trainers
     """
-    def __init__(self, config, logger, generator, discriminator):
+    def __init__(self, config, logger, generator, discriminator, gif_generator):
         self.config = config
         self.logger = logger
+        self.gif_generator = gif_generator
 
         # setup GPU device if available, move model into configured device
         self.device, self.device_ids = self._prepare_device(config['n_gpu'])
@@ -28,6 +31,12 @@ class BaseTrainer:
         self.save_period = cfg_trainer['save_period']
         self.early_stop = cfg_trainer.get('early_stop', inf)
         self.start_epoch = 1
+        self.num_samples = cfg_trainer.get('num_samples', 0)
+        self.z_size = config['generator']['arch']['args']['input_size']
+        if cfg_trainer.get('fixed_image', False):
+            self.default_z = Variable(torch.randn(self.num_samples, z_size)).to(self.device)
+        else:
+            self.default_z = None
 
         self.generator['monitor'] = self.initialize_monitor(cfg_trainer['monitor'].get('generator', 'off'))
         self.discriminator['monitor'] = self.initialize_monitor(cfg_trainer['monitor'].get('discriminator', 'off'))
@@ -123,8 +132,24 @@ class BaseTrainer:
 
         if epoch % self.save_period == 0 or best:
             self._save_checkpoint(epoch, player, save_best=best)
+            if player == "generator" and self.num_samples > 0:
+                self._generate_images(epoch)
 
-        return best
+        return early_stop
+
+    def _generate_images(self, epoch):
+        if self.default_z:
+            z = self.default_z
+        else:
+            z = Variable(torch.randn(self.num_samples, self.z_size)).to(self.device)
+
+        self.generator['model'].eval()
+        samples = self.generator['model'](z).detach().cpu()
+        output_file = str(self.config.output_dir / (str(epoch) + ".png"))
+
+        img = save_generated_images(samples, output_file)
+        self.gif_generator.add_image(img)
+        self.logger.info("saved generated images at {}".format(output_file))
 
     def _monitor_progress(self, player, log):
         if player == 'generator':
