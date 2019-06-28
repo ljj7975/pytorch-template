@@ -28,9 +28,10 @@ def evaluate(generator, discriminator, config, data_loader):
         loss = generator['loss_fn'](dis_output, target)
         gen_samples = gen_samples.detach()
 
+        target = target.squeeze().long()
         metrics = np.zeros(len(generator['metric_fns']))
         for i, metric in enumerate(generator['metric_fns']):
-            metrics[i] += metric(dis_output, target.long())
+            metrics[i] += metric(dis_output, target)
 
         return loss.item(), metrics, gen_samples
 
@@ -51,9 +52,10 @@ def evaluate(generator, discriminator, config, data_loader):
         output = discriminator['model'](data)
         loss = discriminator['loss_fn'](output, target)
 
+        target = target.squeeze().long()
         metrics = np.zeros(len(discriminator['metric_fns']))
         for i, metric in enumerate(discriminator['metric_fns']):
-            metrics[i] += metric(output, target.long())
+            metrics[i] += metric(output, target)
 
         return loss.item(), metrics
 
@@ -162,7 +164,8 @@ class Trainer(BaseTrainer):
         self.discriminator['writer'].set_step((epoch - 1) * self.len_epoch + batch_idx)
         self.discriminator['writer'].add_scalar('loss', loss.item())
 
-        metrics = self._eval_metrics(self.discriminator['metric_fns'], self.discriminator['writer'], output, target.long())
+        target = target.squeeze().long()
+        metrics = self._eval_metrics(self.discriminator['metric_fns'], self.discriminator['writer'], output, target)
 
         return loss.item(), metrics
 
@@ -191,8 +194,9 @@ class Trainer(BaseTrainer):
 
         self.generator['writer'].set_step((epoch - 1) * self.len_epoch + batch_idx)
         self.generator['writer'].add_scalar('loss', loss.item())
-        metrics = self._eval_metrics(self.generator['metric_fns'], self.generator['writer'], dis_output, target.long())
 
+        target = target.squeeze().long()
+        metrics = self._eval_metrics(self.generator['metric_fns'], self.generator['writer'], dis_output, target)
         return loss.item(), metrics, gen_samples
 
     def _train_epoch(self, epoch):
