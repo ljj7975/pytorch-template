@@ -9,7 +9,7 @@ class GifGenerator:
         self.images = []
 
     def save(self):
-        anim = animation.ArtistAnimation(self.fig, self.images, interval=500, repeat_delay=2500, blit=True)
+        anim = animation.ArtistAnimation(self.fig, self.images, interval=500, repeat_delay=5000, blit=True)
         anim.save(self.gif_name, dpi=320, writer='imagemagick')
 
     def add_image(self, image):

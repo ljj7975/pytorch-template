@@ -14,14 +14,15 @@
 		"optimizer": {
 			"type": "Adam",
 			"args":{
-				"lr": 0.001,
+				"lr": 0.0002,
 				"weight_decay": 0,
+				"betas": [0.5, 0.999],
 				"amsgrad": true
 			}
 		},
 		"loss": "bce_loss",
 		"metrics": [
-			"my_metric"
+			"prediction_acc"
 		],
 		"lr_scheduler": {
 			"type": "StepLR",
@@ -44,12 +45,13 @@
 			"args":{
 				"lr": 0.001,
 				"weight_decay": 0,
+				"betas": [0.5, 0.999],
 				"amsgrad": true
 			}
 		},
 		"loss": "bce_loss",
 		"metrics": [
-			"my_metric"
+			"prediction_acc"
 		],
 		"lr_scheduler": {
 			"type": "StepLR",
@@ -72,10 +74,10 @@
 	},
 
 	"trainer": {
-		"epochs": 10000,
+		"epochs": 200,
 
 		"save_dir": "saved/",
-		"save_period": 250,
+		"save_period": 25,
 		"verbosity": 2,
 
 		"monitor": {
@@ -83,7 +85,7 @@
 			"discriminator": "max val_loss"
 		},
 
-		"early_stop": 250,
+		"early_stop": 200,
 		"num_samples": 16,
 		"fixed_samples": true,
 		"tensorboard": false

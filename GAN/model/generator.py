@@ -8,16 +8,25 @@ class Generator(nn.Module):
     def __init__(self, input_size, output_size, img_shape):
         super(Generator, self).__init__()
         self.img_shape = tuple(img_shape)
-        self.fc1 = nn.Linear(input_size, 256)
-        self.fc2 = nn.Linear(self.fc1.out_features, self.fc1.out_features*2)
-        self.fc3 = nn.Linear(self.fc2.out_features, self.fc2.out_features*2)
-        self.fc4 = nn.Linear(self.fc3.out_features, output_size)
+
+        def block(in_feat, out_feat, normalize=True):
+            layers = [nn.Linear(in_feat, out_feat)]
+            if normalize:
+                layers.append(nn.BatchNorm1d(out_feat, 0.8))
+            layers.append(nn.LeakyReLU(0.2, inplace=True))
+            return layers
+
+        self.model = nn.Sequential(
+            *block(input_size, 128, normalize=False),
+            *block(128, 256),
+            *block(256, 512),
+            *block(512, 1024),
+            nn.Linear(1024, output_size),
+            nn.Tanh()
+        )
 
     # forward method
     def forward(self, input):
-        x = F.leaky_relu(self.fc1(input), 0.2)
-        x = F.leaky_relu(self.fc2(x), 0.2)
-        x = F.leaky_relu(self.fc3(x), 0.2)
-        x = torch.tanh(self.fc4(x))
-        x = x.view(x.size(0), *self.img_shape)
+        img = self.model(input)
+        x = img.view(img.size(0), *self.img_shape)
         return x
