@@ -12,18 +12,12 @@
 			}
 		},
 		"optimizer": {
-			"type": "Adam",
+			"type": "RMSprop",
 			"args":{
-				"lr": 0.0002,
-				"weight_decay": 0,
-				"betas": [0.5, 0.999],
-				"amsgrad": true
+				"lr": 0.00005,
+				"weight_decay": 0
 			}
 		},
-		"loss": "bce_loss",
-		"metrics": [
-			"prediction_acc"
-		],
 		"lr_scheduler": {
 			"type": "StepLR",
 			"args": {
@@ -41,18 +35,13 @@
 			}
 		},
 		"optimizer": {
-			"type": "Adam",
+			"type": "RMSprop",
 			"args":{
-				"lr": 0.0002,
-				"weight_decay": 0,
-				"betas": [0.5, 0.999],
-				"amsgrad": true
+				"lr": 0.00005,
+				"weight_decay": 0
 			}
 		},
-		"loss": "bce_loss",
-		"metrics": [
-			"prediction_acc"
-		],
+		"clip_value": 0.01,
 		"lr_scheduler": {
 			"type": "StepLR",
 			"args": {
@@ -75,6 +64,7 @@
 
 	"trainer": {
 		"epochs": 200,
+		"n_critic": 5,
 
 		"save_dir": "saved/",
 		"save_period": 25,
