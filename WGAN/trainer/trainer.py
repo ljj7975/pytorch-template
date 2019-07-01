@@ -130,7 +130,7 @@ class Trainer(BaseTrainer):
 
         real_output = self.discriminator['model'](data)
 
-        loss = -(torch.mean(real_output) - torch.mean(fake_output))
+        loss = -(torch.mean(real_output) + torch.mean(fake_output))
 
         loss.backward()
         self.discriminator['optimizer'].step()
@@ -164,12 +164,11 @@ class Trainer(BaseTrainer):
 
         loss.backward()
         self.generator['optimizer'].step()
-        gen_samples = gen_samples.detach()
 
         self.generator['writer'].set_step((epoch - 1) * self.len_epoch + batch_idx)
         self.generator['writer'].add_scalar('loss', loss.item())
 
-        return loss.item(), gen_samples
+        return loss.item()
 
     def _train_epoch(self, epoch):
         """
@@ -198,7 +197,6 @@ class Trainer(BaseTrainer):
             dis_loss = self._train_discriminator(epoch, batch_idx, data)
 
             total_dis_loss += dis_loss
-            # total_dis_metrics += dis_metrics
 
             if batch_idx % self.log_step == 0:
                 log_msg = ('Train Epoch: {} {} \n\t'
@@ -211,7 +209,7 @@ class Trainer(BaseTrainer):
                 self.generator['writer'].add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
 
             if epoch % self.n_critic == 0:
-                gen_loss, gen_metrics = self._train_generator(epoch, batch_idx, data)
+                gen_loss = self._train_generator(epoch, batch_idx, data)
 
                 total_gen_loss += gen_loss
 
@@ -236,8 +234,10 @@ class Trainer(BaseTrainer):
 
         if self.do_validation:
             val_log = self._valid_epoch(epoch)
-            log['generator'].update(val_log['generator'])
             log['discriminator'].update(val_log['discriminator'])
+
+            if epoch % self.n_critic == 0:
+                log['generator'].update(val_log['generator'])
 
         if self.generator['lr_scheduler'] is not None:
             self.generator['lr_scheduler'].step()
@@ -250,13 +250,16 @@ class Trainer(BaseTrainer):
     def _valid_epoch(self, epoch):
         val_log = evaluate(self.generator, self.discriminator, self.config, self.valid_data_loader)
 
-        gen_val_log = {}
-        for key, value in val_log['generator'].items():
-            gen_val_log['val_'+key] = val_log['generator'][key]
+        if epoch % self.n_critic == 0:
+            gen_val_log = {}
+            for key, value in val_log['generator'].items():
+                gen_val_log['val_'+key] = val_log['generator'][key]
 
-        self.generator['writer'].set_step(epoch * len(self.valid_data_loader), 'valid')
-        for key, value in gen_val_log.items():
-            self.generator['writer'].add_scalar('val_'+key, value)
+            self.generator['writer'].set_step(epoch * len(self.valid_data_loader), 'valid')
+            for key, value in gen_val_log.items():
+                self.generator['writer'].add_scalar('val_'+key, value)
+
+            val_log['generator'] = gen_val_log
 
         dis_val_log = {}
         for key, value in val_log['discriminator'].items():
@@ -266,7 +269,6 @@ class Trainer(BaseTrainer):
         for key, value in dis_val_log.items():
             self.discriminator['writer'].add_scalar('val_'+key, value)
 
-        val_log['generator'] = gen_val_log
         val_log['discriminator'] = dis_val_log
 
         # add histogram of model parameters to the tensorboard
