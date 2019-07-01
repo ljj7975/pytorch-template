@@ -106,14 +106,13 @@ class BaseTrainer:
             log_msg = '< Epoch {} >'.format(log['epoch']) + '\n'
 
             gen_early_stop = False
-            if epoch % self.n_critic == 0:
-                log_msg += '    Generator :\n'
-                for key, value in log['generator'].items():
-                    if isinstance(value, float):
-                        value = round(value, 6)
-                    log_msg += '        {:15s}: {}'.format(str(key), value) + '\n'
+            log_msg += '    Generator :\n'
+            for key, value in log['generator'].items():
+                if isinstance(value, float):
+                    value = round(value, 6)
+                log_msg += '        {:15s}: {}'.format(str(key), value) + '\n'
 
-                gen_early_stop = self._check_and_save(epoch, 'generator', log['generator'])
+            gen_early_stop = self._check_and_save(epoch, 'generator', log['generator'])
 
             log_msg += '    discriminator :\n'
             for key, value in log['discriminator'].items():

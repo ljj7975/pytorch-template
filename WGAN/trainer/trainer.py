@@ -115,14 +115,11 @@ class Trainer(BaseTrainer):
         self.z_size = self.generator['config']['arch']['args']['input_size']
         self.output_size = self.generator['config']['arch']['args']['output_size']
 
-    def _train_discriminator(self, epoch, batch_idx, data):
+    def _train_discriminator(self, epoch, batch_idx, data, z):
         self.generator['model'].eval()
         self.discriminator['model'].train()
 
         self.discriminator['optimizer'].zero_grad()
-
-        # Sample noise as generator input
-        z = Variable(torch.randn(data.size(0), self.z_size)).to(self.device)
 
         # Generate a batch of images
         gen_samples = self.generator['model'](z)
@@ -130,7 +127,7 @@ class Trainer(BaseTrainer):
 
         real_output = self.discriminator['model'](data)
 
-        loss = -(torch.mean(real_output) + torch.mean(fake_output))
+        loss = -torch.mean(real_output) + torch.mean(fake_output)
 
         loss.backward()
         self.discriminator['optimizer'].step()
@@ -144,17 +141,14 @@ class Trainer(BaseTrainer):
 
         return loss.item()
 
-    def _train_generator(self, epoch, batch_idx, data):
+    def _train_generator(self, epoch, batch_idx, z):
         self.generator['model'].train()
         self.discriminator['model'].eval()
 
         self.generator['optimizer'].zero_grad()
 
         # generate samples which can fool discriminator
-        target = Variable(torch.FloatTensor(data.size(0), 1).fill_(1.0), requires_grad=False).to(self.device)
-
-        # Sample noise as generator input
-        z = Variable(torch.randn(data.size(0), self.z_size)).to(self.device)
+        target = Variable(torch.FloatTensor(z.size(0), 1).fill_(1.0), requires_grad=False).to(self.device)
 
         # Generate a batch of images
         gen_samples = self.generator['model'](z)
@@ -194,7 +188,10 @@ class Trainer(BaseTrainer):
         for batch_idx, (data, _) in enumerate(self.data_loader):
             data = data.to(self.device)
 
-            dis_loss = self._train_discriminator(epoch, batch_idx, data)
+            # Sample noise as generator input
+            z = Variable(torch.randn(data.size(0), self.z_size)).to(self.device)
+
+            dis_loss = self._train_discriminator(epoch, batch_idx, data, z)
 
             total_dis_loss += dis_loss
 
@@ -205,17 +202,16 @@ class Trainer(BaseTrainer):
                     self._progress(batch_idx),
                     dis_loss)
                 self.discriminator['writer'].add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
-
                 self.generator['writer'].add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
 
-            if epoch % self.n_critic == 0:
-                gen_loss = self._train_generator(epoch, batch_idx, data)
+            # Train the generator every n_critic iterations
+            if batch_idx % self.n_critic == 0:
+                gen_loss = self._train_generator(epoch, batch_idx, z)
 
                 total_gen_loss += gen_loss
 
-                if batch_idx % self.log_step == 0:
-                    log_msg += ('\tgenerator loss\t: {:.6f}').format(gen_loss)
-                    self.generator['writer'].add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+                log_msg += ('\tgenerator loss\t: {:.6f}').format(gen_loss)
+                self.generator['writer'].add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
 
             if batch_idx % self.log_step == 0:
                 self.logger.debug(log_msg)
@@ -235,9 +231,7 @@ class Trainer(BaseTrainer):
         if self.do_validation:
             val_log = self._valid_epoch(epoch)
             log['discriminator'].update(val_log['discriminator'])
-
-            if epoch % self.n_critic == 0:
-                log['generator'].update(val_log['generator'])
+            log['generator'].update(val_log['generator'])
 
         if self.generator['lr_scheduler'] is not None:
             self.generator['lr_scheduler'].step()
@@ -250,16 +244,15 @@ class Trainer(BaseTrainer):
     def _valid_epoch(self, epoch):
         val_log = evaluate(self.generator, self.discriminator, self.config, self.valid_data_loader)
 
-        if epoch % self.n_critic == 0:
-            gen_val_log = {}
-            for key, value in val_log['generator'].items():
-                gen_val_log['val_'+key] = val_log['generator'][key]
+        gen_val_log = {}
+        for key, value in val_log['generator'].items():
+            gen_val_log['val_'+key] = val_log['generator'][key]
 
-            self.generator['writer'].set_step(epoch * len(self.valid_data_loader), 'valid')
-            for key, value in gen_val_log.items():
-                self.generator['writer'].add_scalar('val_'+key, value)
+        self.generator['writer'].set_step(epoch * len(self.valid_data_loader), 'valid')
+        for key, value in gen_val_log.items():
+            self.generator['writer'].add_scalar('val_'+key, value)
 
-            val_log['generator'] = gen_val_log
+        val_log['generator'] = gen_val_log
 
         dis_val_log = {}
         for key, value in val_log['discriminator'].items():
