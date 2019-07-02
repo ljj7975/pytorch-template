@@ -6,7 +6,7 @@ import math
 
 
 class Discriminator(nn.Module):
-    def __init__(self, img_shape, n_classes, code_dim):
+    def __init__(self, img_shape, cat_dim, cont_dim):
         super(Discriminator, self).__init__()
 
         self.img_shape = tuple(img_shape) # img_shape = (C, H, W) and H is equal to W
@@ -30,8 +30,8 @@ class Discriminator(nn.Module):
 
         # Output layers
         self.adv_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, 1))
-        self.aux_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, n_classes))
-        self.latent_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, code_dim))
+        self.aux_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, cat_dim))
+        self.latent_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, cont_dim))
 
     def forward(self, img):
         out = self.conv_blocks(img)

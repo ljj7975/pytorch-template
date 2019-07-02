@@ -5,10 +5,10 @@ from base import BaseModel
 nn.functional.interpolate
 
 class Generator(nn.Module):
-    def __init__(self, img_shape, latent_dim, n_classes, code_dim):
+    def __init__(self, img_shape, latent_dim, cat_dim, cont_dim):
         super(Generator, self).__init__()
         self.img_shape = tuple(img_shape) # img_shape = (C, H, W) and H is equal to W
-        input_dim = latent_dim + n_classes + code_dim
+        input_dim = latent_dim + cat_dim + cont_dim
 
         self.init_size = self.img_shape[1] // 4  # Initial size before upsampling
         self.l1 = nn.Sequential(nn.Linear(input_dim, 128 * self.init_size ** 2))

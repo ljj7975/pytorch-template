@@ -8,8 +8,8 @@
 			"args": {
 				"img_shape": [1, 28, 28],
 				"latent_dim": 62,
-				"n_classes": 10,
-				"code_dim": 2
+				"cat_dim": 10,
+				"cont_dim": 2
 			}
 		},
 		"optimizer": {
@@ -39,8 +39,8 @@
 			"type": "Discriminator",
 			"args": {
 				"img_shape": [1, 28, 28],
-				"n_classes": 10,
-				"code_dim": 2
+				"cat_dim": 10,
+				"cont_dim": 2
 			}
 		},
 		"optimizer": {
@@ -104,10 +104,10 @@
 	},
 
 	"trainer": {
-		"epochs": 2,
+		"epochs": 3,
 
 		"save_dir": "saved/",
-		"save_period": 25,
+		"save_period": 1,
 		"verbosity": 2,
 
 		"monitor": {
@@ -117,8 +117,6 @@
 		},
 
 		"early_stop": 200,
-		"num_samples": 16,
-		"fixed_samples": true,
 		"tensorboard": false
 	}
 }

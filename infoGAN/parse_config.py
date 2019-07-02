@@ -18,11 +18,10 @@ class ConfigParser:
         if args.device:
             os.environ["CUDA_VISIBLE_DEVICES"] = args.device
         if args.resume:
-            assert len(args.resume) == 3 # one for Generator, one for Discriminator
+            assert len(args.resume) == 2 # one for Generator, one for Discriminator
             self.resume = {
                 'generator': Path(args.resume[0]),
                 'discriminator': Path(args.resume[1]),
-                'encoder': Path(args.resume[2]),
             }
             self.cfg_fname = self.resume['generator'].parent.parent / 'config.json'
         else:

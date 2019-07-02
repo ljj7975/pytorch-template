@@ -9,17 +9,16 @@ import model as model_arch
 from parse_config import ConfigParser
 from trainer import Trainer
 from torch.autograd import Variable
-from utils import save_generated_images, GifGenerator
 
 
 def main(config):
     '''===== Verify Config ====='''
     assert config['generator']['arch']['args']['img_shape'] == \
         config['discriminator']['arch']['args']['img_shape']
-    assert config['generator']['arch']['args']['n_classes'] == \
-        config['discriminator']['arch']['args']['n_classes']
-    assert config['generator']['arch']['args']['code_dim'] == \
-        config['discriminator']['arch']['args']['code_dim']
+    assert config['generator']['arch']['args']['cat_dim'] == \
+        config['discriminator']['arch']['args']['cat_dim']
+    assert config['generator']['arch']['args']['cont_dim'] == \
+        config['discriminator']['arch']['args']['cont_dim']
 
     logger = config.get_logger('train', config['trainer']['verbosity'])
 
@@ -109,9 +108,7 @@ def main(config):
 
     logger.info("< TRAINING >")
 
-    gif_generator = GifGenerator(str(config.output_dir / "progress.gif"))
-
-    trainer = Trainer(config, logger, generator, discriminator, encoder, gif_generator, data_loader, valid_data_loader)
+    trainer = Trainer(config, logger, generator, discriminator, encoder, data_loader, valid_data_loader)
 
     trainer.train()
 
@@ -142,21 +139,12 @@ def main(config):
 
     logger.info(log_msg)
 
-    '''===== Generate samples ====='''
-
-    logger.info("< SAMPLE GENERATION >")
-
-    trainer.generate_image()
-    gif_generator.save()
-
-    logger.info("saved progress as a gif at {}".format(gif_generator.gif_name))
-
 if __name__ == '__main__':
     args = argparse.ArgumentParser(description='infoGAN PyTorch Template')
     args.add_argument('-c', '--config', default=None, type=str,
                       help='config file path (default: None)')
     args.add_argument('-r', '--resume', nargs=2, default=None, type=str,
-                      help='paths to generator, discriminator and encoder checkpoint (default: None)')
+                      help='paths to generator and discriminator checkpoint (default: None)')
     args.add_argument('-d', '--device', default=None, type=str,
                       help='indices of GPUs to enable (default: all)')
 

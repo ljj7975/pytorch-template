@@ -12,9 +12,9 @@ class Trainer(BaseTrainer):
     Note:
         Inherited from BaseTrainer.
     """
-    def __init__(self, config, logger, generator, discriminator, encoder, gif_generator, data_loader,
+    def __init__(self, config, logger, generator, discriminator, encoder, data_loader,
                  valid_data_loader=None):
-        super().__init__(config, logger, generator, discriminator, encoder, gif_generator, valid_data_loader)
+        super().__init__(config, logger, generator, discriminator, encoder, valid_data_loader)
         self.config = config
         self.data_loader = data_loader
 

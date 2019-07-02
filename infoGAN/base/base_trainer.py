@@ -6,17 +6,16 @@ from numpy import inf
 from logger import TensorboardWriter
 from tqdm import tqdm
 from torch.autograd import Variable
-from utils import save_generated_images, to_categorical, init_weights_to_normal
+from utils import SampleGenerator, to_categorical, init_weights_to_normal
 from evaluator import Evaluator
 
 class BaseTrainer:
     """
     Base class for all trainers
     """
-    def __init__(self, config, logger, generator, discriminator, encoder, gif_generator, valid_data_loader=None):
+    def __init__(self, config, logger, generator, discriminator, encoder, valid_data_loader=None):
         self.config = config
         self.logger = logger
-        self.gif_generator = gif_generator
         self.evaluator = Evaluator(config, logger, generator, discriminator, encoder, valid_data_loader)
 
         # setup GPU device if available, move model into configured device
@@ -38,18 +37,12 @@ class BaseTrainer:
         self.save_period = cfg_trainer['save_period']
         self.early_stop = cfg_trainer.get('early_stop', inf)
         self.start_epoch = 1
-        self.num_samples = cfg_trainer.get('num_samples', 0)
 
-        self.z_size = config['generator']['arch']['args']['latent_dim']
-        self.n_classes = config['generator']['arch']['args']['n_classes']
-        self.code_dim = config['generator']['arch']['args']['code_dim']
+        self.latent_dim = config['generator']['arch']['args']['latent_dim']
+        self.cat_dim = config['generator']['arch']['args']['cat_dim']
+        self.cont_dim = config['generator']['arch']['args']['cont_dim']
 
-        if cfg_trainer.get('fixed_image', False):
-            self.default_z, self.default_cat_c, self.default_cont_c = self._generate_random_input(self.num_samples)
-        else:
-            self.default_z = None
-            self.default_cat_c = None
-            self.default_cont_c = None
+        self.sample_generator = SampleGenerator(config.output_dir, generator['model'], self.latent_dim, self.cat_dim, self.cont_dim, n_row=self.cat_dim)
 
         self.generator['model'].apply(init_weights_to_normal)
         self.discriminator['model'].apply(init_weights_to_normal)
@@ -72,7 +65,6 @@ class BaseTrainer:
         if config.resume is not None:
             self._resume_checkpoint('generator', config.resume['generator'])
             self._resume_checkpoint('discriminator', config.resume['discriminator'])
-            self._resume_checkpoint('encoder', config.resume['encoder'])
 
     @abstractmethod
     def _train_epoch(self, epoch):
@@ -84,9 +76,9 @@ class BaseTrainer:
         raise NotImplementedError
 
     def _generate_random_input(self, batch_size):
-        z = Variable(torch.Tensor(np.random.normal(0, 1, (batch_size, self.z_size)))).float().to(self.device)
-        label_input = to_categorical(np.random.randint(0, self.n_classes, batch_size), num_columns=self.n_classes).to(self.device)
-        code_input = Variable(torch.Tensor(np.random.uniform(-1, 1, (batch_size, self.code_dim)))).float().to(self.device)
+        z = Variable(torch.Tensor(np.random.normal(0, 1, (batch_size, self.latent_dim)))).float().to(self.device)
+        label_input = to_categorical(np.random.randint(0, self.cat_dim, batch_size), num_columns=self.cat_dim).to(self.device)
+        code_input = Variable(torch.Tensor(np.random.uniform(-1, 1, (batch_size, self.cont_dim)))).float().to(self.device)
 
         z.requires_grad = False
         label_input.requires_grad = False
@@ -161,6 +153,8 @@ class BaseTrainer:
             if gen_early_stop or dis_early_stop or enc_early_stop:
                 break;
 
+        self.sample_generator.generate_gif()
+
     def _check_and_save(self, epoch, player, log):
         # evaluate model performance according to configured metric, save best checkpoint as model_best
         best, early_stop = self._monitor_progress(player, log)
@@ -171,29 +165,10 @@ class BaseTrainer:
 
         if epoch % self.save_period == 0 or best:
             self._save_checkpoint(epoch, player, save_best=best)
-            if player == "generator" and self.num_samples > 0:
-                self.generate_image(epoch)
+            if player == "generator":
+                self.sample_generator.generate_sample(str(epoch))
 
         return early_stop
-
-    def generate_image(self, epoch=None):
-        if self.default_z:
-            z = self.default_z
-            cat_c = self.default_cat_c
-            cont_c = self.default_cont_c
-        else:
-            z, cat_c, cont_c = self._generate_random_input(self.num_samples)
-
-        self.generator['model'].eval()
-        samples = self.generator['model'](z, cat_c, cont_c).detach().cpu()
-        if epoch:
-            output_file = str(self.config.output_dir / (str(epoch) + ".png"))
-        else:
-            output_file = str(self.config.output_dir / "final.png")
-
-        img = save_generated_images(samples, output_file)
-        self.gif_generator.add_image(img)
-        self.logger.info("saved generated images at {}".format(output_file))
 
     def _monitor_progress(self, player, log):
         if player == 'generator':

@@ -6,7 +6,8 @@ import model.loss as module_loss
 import model.metric as module_metric
 import model as model_arch
 from parse_config import ConfigParser
-from trainer import evaluate
+from evaluator import Evaluator
+from utils import SampelGenerator
 
 
 def main(config):
@@ -75,9 +76,24 @@ def main(config):
         'metric_fns': metric_fns
     }
 
+
+    '''===== Encoder ====='''
+    logger.info('preparing Encoder')
+
+    cat_loss_fn = getattr(module_loss, config['encoder']['categorical_loss'])
+    cont_loss_fn = getattr(module_loss, config['encoder']['continuous_loss'])
+
+    encoder = {
+        'cat_loss_fn': cat_loss_fn,
+        'cont_loss_fn': cont_loss_fn,
+    }
+
     '''===== Testing ====='''
 
-    log = evaluate(generator, discriminator, config, data_loader)
+    logger.info("< TESTING >")
+
+    evaluator = Evaluator(config, logger, generator, discriminator, encoder, data_loader)
+    log = evaluator.evaluate()
 
     log_msg = '< Evaluation >\n'
     log_msg += '    Generator :\n'
@@ -92,8 +108,23 @@ def main(config):
             value = round(value, 6)
         log_msg += '        {:15s}: {}'.format(str(key), value) + '\n'
 
+    log_msg += '    Encoder :\n'
+    for key, value in log['encoder'].items():
+        if isinstance(value, float):
+            value = round(value, 6)
+        log_msg += '        {:15s}: {}'.format(str(key), value) + '\n'
+
     logger.info(log_msg)
 
+    '''===== Generate samples ====='''
+
+    logger.info("< SAMPLE GENERATION >")
+
+    sample_generator = SampelGenerator(config.output_dir, generator['model'], evaluator.latent_dim, evaluator.cat_dim, evaluator.cont_dim, n_row=10)
+
+    sample_generator.generate_image()
+
+    logger.info("Generated image at {}".format(config.output_dir))
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser(description='PyTorch Template')
